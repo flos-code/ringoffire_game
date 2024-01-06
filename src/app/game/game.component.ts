@@ -16,8 +16,16 @@ import {
   doc,
   collection,
   addDoc,
+  onSnapshot,
+  updateDoc,
 } from '@angular/fire/firestore';
 import { Observable } from 'rxjs';
+import { ActivatedRoute } from '@angular/router';
+import {
+  Unsubscribe,
+  DocumentReference,
+  DocumentData,
+} from 'firebase/firestore';
 
 @Injectable({
   providedIn: 'root',
@@ -38,52 +46,56 @@ import { Observable } from 'rxjs';
   styleUrl: './game.component.scss',
 })
 export class GameComponent implements OnInit {
-  pickCardAnimation = false;
+  // pickCardAnimation = false;
   game: Game;
-  currentCard: string = '';
+  // currentCard: string = '';
+  gameID: string = '';
+
+  unsubGames: Unsubscribe | null = null;
 
   firestore: Firestore = inject(Firestore);
 
-  constructor(public dialog: MatDialog) {
+  constructor(private route: ActivatedRoute, public dialog: MatDialog) {
     this.game = new Game();
   }
+
   ngOnInit(): void {
     this.newGame();
-    this.subToGame();
-  }
 
-  subToGame() {
-    let gameRef = collection(this.firestore, 'games');
-    let gameData = collectionData(gameRef);
-    gameData.subscribe((game) => {
-      console.log('All Game Docs', game);
+    this.route.params.subscribe((params) => {
+      if (params['id']) {
+        this.gameID = params['id'];
+        console.log(params['id']);
+        this.unsubGames = this.subscribeToGame(params['id']);
+      }
     });
-    // return gameData;
   }
 
   newGame() {
     this.game = new Game();
-    this.addGame();
+    // this.addGame();
   }
 
   async addGame() {
-    await addDoc(this.getGamesRef(), { Hallo: 'Welt' });
+    await addDoc(this.getGamesRef(), this.game.toJson());
   }
 
   takeCard() {
-    if (!this.pickCardAnimation) {
+    if (!this.game.pickCardAnimation) {
       let poppedCard = this.game.stack.pop();
       if (typeof poppedCard === 'string') {
-        this.currentCard = poppedCard;
+        this.game.currentCard = poppedCard;
       }
-      this.pickCardAnimation = true;
+      this.game.pickCardAnimation = true;
 
       this.game.currentPlayer++;
       this.game.currentPlayer =
         this.game.currentPlayer % this.game.players.length;
+      this.saveGame();
       setTimeout(() => {
-        this.game.playedCards.push(this.currentCard);
-        this.pickCardAnimation = false;
+        this.game.playedCards.push(this.game.currentCard);
+        this.game.pickCardAnimation = false;
+        this.saveGame();
       }, 1000);
     }
   }
@@ -94,11 +106,63 @@ export class GameComponent implements OnInit {
     dialogRef.afterClosed().subscribe((name: string) => {
       if (name && name.length > 0) {
         this.game.players.push(name);
+        this.saveGame();
       }
     });
   }
 
   getGamesRef() {
     return collection(this.firestore, 'games');
+  }
+
+  getSingleGameRef(colId: string, docId: string) {
+    let data = doc(collection(this.firestore, colId), docId);
+    return data;
+  }
+
+  subscribeToGame(gameId: string): Unsubscribe {
+    return onSnapshot(
+      this.getSingleGameRef('games', gameId),
+      (gameData: any) => {
+        console.log('Game Update', gameData.data());
+
+        this.game.players = gameData.data().players;
+        this.game.stack = gameData.data().stack;
+        this.game.playedCards = gameData.data().playedCards;
+        this.game.currentPlayer = gameData.data().currentPlayer;
+        this.game.pickCardAnimation = gameData.data().pickCardAnimation;
+        if (this.game.currentCard !== undefined) {
+          this.game.currentCard = gameData.data().currentCard;
+        } else {
+          return;
+        }
+      }
+    );
+  }
+
+  ngOnDestroy() {
+    if (this.unsubGames) {
+      this.unsubGames();
+    }
+  }
+
+  async saveGame() {
+    if (this.gameID) {
+      let docRef = this.getSingleGameRef('games', this.gameID);
+      await updateDoc(docRef, this.getCleanJson()).catch((err) => {
+        console.error(err);
+      });
+    }
+  }
+
+  getCleanJson() {
+    return {
+      players: this.game.players,
+      stack: this.game.stack,
+      playedCards: this.game.playedCards,
+      currentPlayer: this.game.currentPlayer,
+      pickCardAnimation: this.game.pickCardAnimation,
+      currentCard: this.game.currentCard,
+    };
   }
 }
