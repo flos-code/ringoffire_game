@@ -9,7 +9,19 @@ import { MatDialog } from '@angular/material/dialog';
 import { DialogAddPlayerComponent } from '../dialog-add-player/dialog-add-player.component';
 import { MatDialogModule } from '@angular/material/dialog';
 import { GameDescriptionComponent } from '../game-description/game-description.component';
+import { Injectable, inject } from '@angular/core';
+import {
+  Firestore,
+  collectionData,
+  doc,
+  collection,
+  addDoc,
+} from '@angular/fire/firestore';
+import { Observable } from 'rxjs';
 
+@Injectable({
+  providedIn: 'root',
+})
 @Component({
   selector: 'app-game',
   standalone: true,
@@ -30,16 +42,32 @@ export class GameComponent implements OnInit {
   game: Game;
   currentCard: string = '';
 
+  firestore: Firestore = inject(Firestore);
+
   constructor(public dialog: MatDialog) {
     this.game = new Game();
   }
   ngOnInit(): void {
     this.newGame();
+    this.subToGame();
+  }
+
+  subToGame() {
+    let gameRef = collection(this.firestore, 'games');
+    let gameData = collectionData(gameRef);
+    gameData.subscribe((game) => {
+      console.log('All Game Docs', game);
+    });
+    // return gameData;
   }
 
   newGame() {
     this.game = new Game();
-    console.log(this.game);
+    this.addGame();
+  }
+
+  async addGame() {
+    await addDoc(this.getGamesRef(), { Hallo: 'Welt' });
   }
 
   takeCard() {
@@ -68,5 +96,9 @@ export class GameComponent implements OnInit {
         this.game.players.push(name);
       }
     });
+  }
+
+  getGamesRef() {
+    return collection(this.firestore, 'games');
   }
 }
