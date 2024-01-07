@@ -26,6 +26,7 @@ import {
   DocumentReference,
   DocumentData,
 } from 'firebase/firestore';
+import { PlayerMobileComponent } from '../player-mobile/player-mobile.component';
 
 @Injectable({
   providedIn: 'root',
@@ -41,6 +42,7 @@ import {
     MatIconModule,
     MatDialogModule,
     GameDescriptionComponent,
+    PlayerMobileComponent,
   ],
   templateUrl: './game.component.html',
   styleUrl: './game.component.scss',
